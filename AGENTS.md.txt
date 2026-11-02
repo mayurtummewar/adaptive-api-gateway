@@ -1,0 +1,59 @@
+# Development Instructions
+
+## Project Overview
+This repository contains my final-year Computer Engineering project: **AI-Powered API Security Gateway for E-commerce Applications**.
+
+The main research focus is the AI-based API traffic anomaly detection and adaptive security decisions, not simply building an e-commerce website.
+
+## Development Rules
+
+1. Inspect existing code before modifying it.
+2. Never overwrite working implementations without understanding their purpose.
+3. Make incremental changes. Complete one logical task and test it before proceeding.
+4. Explain important technical decisions briefly, including why a particular approach is chosen.
+5. Keep explanations concise and beginner-friendly.
+6. Do not introduce unnecessary dependencies, frameworks, or architectural complexity.
+7. Do not invent completed features or claim something works without testing it.
+8. Ask before making major architectural changes or deleting existing code.
+9. Keep project documentation updated when architecture or implementation changes.
+10. Prefer readable, maintainable code over unnecessarily clever implementations.
+
+## Architecture Guidelines
+
+- APISIX acts as the API gateway.
+- The backend and AI engine should remain independent services.
+- The AI engine should evaluate API traffic and contribute to security decisions.
+- The e-commerce backend is primarily a realistic source of API traffic.
+- Avoid coupling the AI engine directly to e-commerce business logic.
+- Keep security decisions explainable and observable.
+
+## Technology Stack
+
+- Frontend: Angular / TypeScript
+- Backend: Python / FastAPI
+- Database: PostgreSQL
+- API Gateway: Apache APISIX
+- Configuration Store: etcd
+- AI/ML: Python / PyTorch
+- Development Environment: Windows 11, PowerShell, Docker Desktop, WSL2
+
+## Security and Configuration
+
+- Never commit passwords, API keys, tokens, or other secrets.
+- Use environment variables for sensitive configuration.
+- Do not expose development services publicly.
+- Do not disable security checks merely to make tests pass.
+- Investigate dependency vulnerabilities before deployment.
+
+## Testing
+
+- Test every meaningful change.
+- Verify API responses and status codes.
+- Check container logs when debugging Docker services.
+- Do not assume that a successful build means the feature works.
+
+## Git
+
+- Preserve existing user changes.
+- Do not reset, discard, or overwrite uncommitted work.
+- Avoid destructive Git commands unless explicitly approved.

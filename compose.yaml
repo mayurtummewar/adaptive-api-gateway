@@ -1,0 +1,56 @@
+services:
+  etcd:
+    image: bitnamilegacy/etcd:3.5
+    environment:
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+    volumes:
+      - etcd_data:/bitnami/etcd
+    networks:
+      - gateway
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gateway
+  apisix:
+    image: apache/apisix:3.19.0-debian
+    depends_on:
+      - etcd
+    ports:
+      - "127.0.0.1:9180:9180"
+      - "127.0.0.1:9081:9080"
+    volumes:
+      - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+    networks:
+      - gateway
+    environment:
+      APISIX_ADMIN_KEY: ${APISIX_ADMIN_KEY:?Set APISIX_ADMIN_KEY in .env}
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecommerce -d ecommerce"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway
+
+volumes:
+  etcd_data:
+  postgres_data:
+
+networks:
+  gateway:

@@ -1,0 +1,9 @@
+{
+    "uri":  "/hello",
+    "upstream":  {
+                     "nodes":  {
+                                   "backend:8000":  1
+                               },
+                     "type":  "roundrobin"
+                 }
+}

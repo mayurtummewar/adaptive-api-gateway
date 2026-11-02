@@ -1,0 +1,17 @@
+{
+  "features": [
+    "path_length",
+    "query_length",
+    "query_param_count",
+    "header_count",
+    "user_agent_length",
+    "request_body_bytes",
+    "interarrival_ms",
+    "requests_last_10s"
+  ],
+  "threshold": 0.6760899424552917,
+  "training_samples": 60,
+  "calibration_samples": 20,
+  "calibration_percentile": 95,
+  "training_loss": 0.21949468553066254
+}

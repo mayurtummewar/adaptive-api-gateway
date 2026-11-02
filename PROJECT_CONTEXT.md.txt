@@ -1,0 +1,137 @@
+# AI-Powered API Security Gateway
+
+## 1. Project Objective
+
+Build an adaptive API security gateway that uses an AI-based anomaly detection engine to analyse incoming API traffic and influence gateway security decisions.
+
+Expected decisions:
+- ALLOW
+- RATE LIMIT
+- BLOCK
+
+The project uses an e-commerce application to generate realistic API traffic for development, testing and model evaluation.
+
+## 2. Architecture
+
+Client (Angular)
+    |
+    v
+Apache APISIX API Gateway
+    |
+    +----> FastAPI E-commerce Backend
+    |             |
+    |             v
+    |         PostgreSQL
+    |
+    +----> AI Security Engine (FastAPI + PyTorch)
+
+The AI engine is intended to analyse API traffic independently of the e-commerce business logic.
+
+## 3. Technology Stack
+
+| Component | Technology |
+|---|---|
+| Frontend | Angular 13 |
+| Backend | FastAPI |
+| Database | PostgreSQL 17 |
+| API Gateway | Apache APISIX 3.19 |
+| Configuration Store | etcd 3.5 |
+| AI Engine | Python, FastAPI, PyTorch |
+| Containers | Docker Compose |
+
+## 4. Local Environment
+
+Project root:
+D:\Mayur\coding\adaptive-api-gateway
+
+Gateway:
+http://localhost:9081
+
+APISIX Admin API:
+http://localhost:9180
+
+Backend internal port:
+8000
+
+Frontend development server:
+http://localhost:4200
+
+Development is performed locally using Windows 11, PowerShell and Docker Desktop with WSL2.
+
+## 5. Current Implementation Status
+
+### Infrastructure
+- Docker Desktop and Docker Compose working.
+- APISIX and etcd running.
+- PostgreSQL container running and healthy.
+- FastAPI backend running inside Docker.
+- APISIX wildcard route configured to forward requests to the backend.
+- Gateway successfully tested.
+
+### Backend
+- FastAPI application exists.
+- SQLAlchemy database connection configured.
+- PostgreSQL database configured.
+- Product model and Pydantic schemas created.
+- Database tables currently created using SQLAlchemy create_all().
+- GET /products implemented.
+- GET /products/{product_id} implemented.
+
+### Frontend
+- Teammate-provided Angular 13 e-commerce frontend extracted into e-commerce-frontend.
+- HttpClientModule added to app.module.ts.
+- CollectionService modified to request GET /products.
+- ProductsComponent modified to load products from the backend.
+- Product card integration is not yet verified.
+- Frontend/backend CORS configuration may still be required.
+
+### AI Engine
+- Separate FastAPI AI service and PyTorch autoencoder prototype exist.
+- Earlier synthetic-data experiments showed false positives on some normal requests.
+- Model feature selection, dataset quality, threshold calibration and evaluation need further work.
+- Do not assume the current model is production-ready.
+
+## 6. Important Development Decisions
+
+- Keep the e-commerce backend as a modular FastAPI application initially.
+- Use PostgreSQL for persistent application data.
+- Use APISIX as the entry point for frontend API requests.
+- Keep Angular development outside Docker initially.
+- Run Angular locally using Node.js and npm.
+- Containerize the frontend later for deployment.
+- Prioritize realistic API traffic generation before finalizing AI model features.
+
+## 7. Frontend Dependency Warning
+
+The Angular project uses Angular 13.
+
+Installation required:
+npm install --legacy-peer-deps
+
+Reason:
+angular-responsive-carousel@2.1.2 declares a peer dependency on Angular 11.
+
+Installation reported 127 vulnerabilities, including 9 critical.
+
+Do not blindly execute npm audit fix --force.
+Review and update dependencies carefully before deployment.
+
+## 8. Immediate Next Steps
+
+1. Inspect the current Angular modifications.
+2. Verify CollectionService and ProductsComponent.
+3. Integrate the product card component with the backend Product schema.
+4. Start the Angular development server.
+5. Test product retrieval through APISIX.
+6. Resolve CORS issues if encountered.
+7. Implement product creation and seed initial product data.
+8. Continue with authentication, cart and order functionality.
+
+## 9. Working Conventions
+
+- Make small, testable changes.
+- Preserve existing code and user modifications.
+- Update this document as implementation progresses.
+- Record important architecture decisions.
+- Explain technical decisions concisely.
+- Never mark a feature as complete without testing it.
