@@ -54,3 +54,5 @@ etcd_data/
 Thumbs.db
 desktop.ini
 
+# Local research datasets
+datasets/
