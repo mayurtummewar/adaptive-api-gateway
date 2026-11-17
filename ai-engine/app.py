@@ -1,14 +1,11 @@
-
 import json
 import math
 from pathlib import Path
-import pandas as pd
+
 import joblib
-import numpy as np
-import torch
+import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from torch import nn
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -27,23 +24,6 @@ FEATURES = [
 ]
 
 
-class Autoencoder(nn.Module):
-    def __init__(self, input_dim):
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Linear(input_dim, 6),
-            nn.ReLU(),
-            nn.Linear(6, 3),
-            nn.ReLU(),
-            nn.Linear(3, 6),
-            nn.ReLU(),
-            nn.Linear(6, input_dim),
-        )
-
-    def forward(self, x):
-        return self.network(x)
-
-
 class RequestFeatures(BaseModel):
     path_length: float = Field(ge=0)
     query_length: float = Field(ge=0)
@@ -55,18 +35,18 @@ class RequestFeatures(BaseModel):
     requests_last_10s: float = Field(ge=0)
 
 
-app = FastAPI(title="AI API Security Service", version="0.1.0")
+app = FastAPI(title="AI API Security Service", version="0.2.0")
 
 model = None
-scaler = None
-threshold = None
+rate_limit_threshold = None
+block_threshold = None
 
 
 @app.on_event("startup")
 def load_artifacts():
-    global model, scaler, threshold
+    global model, rate_limit_threshold, block_threshold
 
-    with (ARTIFACTS / "metadata.json").open(
+    with (ARTIFACTS / "classifier_metadata.json").open(
         encoding="utf-8"
     ) as file:
         metadata = json.load(file)
@@ -74,18 +54,9 @@ def load_artifacts():
     if metadata["features"] != FEATURES:
         raise RuntimeError("Model feature order does not match API.")
 
-    scaler = joblib.load(ARTIFACTS / "scaler.joblib")
-
-    model = Autoencoder(len(FEATURES))
-    state = torch.load(
-        ARTIFACTS / "autoencoder.pt",
-        map_location="cpu",
-        weights_only=True,
-    )
-    model.load_state_dict(state)
-    model.eval()
-
-    threshold = float(metadata["threshold"])
+    model = joblib.load(ARTIFACTS / "classifier.joblib")
+    rate_limit_threshold = float(metadata["rate_limit_threshold"])
+    block_threshold = float(metadata["block_threshold"])
 
 
 @app.get("/health")
@@ -93,6 +64,7 @@ def health():
     return {
         "status": "healthy" if model is not None else "not_ready",
         "model_loaded": model is not None,
+        "model": "random-forest-v1",
     }
 
 
@@ -100,34 +72,31 @@ def health():
 def score(features: RequestFeatures):
     values = features.model_dump()
 
-    if not all(math.isfinite(v) for v in values.values()):
+    if not all(math.isfinite(value) for value in values.values()):
         raise HTTPException(
             status_code=422,
             detail="Features must be finite numbers.",
         )
 
-    # Preserve the exact feature order used during training.
-    raw = pd.DataFrame(
-    [[values[name] for name in FEATURES]],
-    columns=FEATURES,
+    ordered_values = pd.DataFrame(
+        [[values[name] for name in FEATURES]],
+        columns=FEATURES,
     )
+    suspicious_probability = float(model.predict_proba(ordered_values)[0][1])
 
-    normalized = scaler.transform(raw).astype(np.float32)
-    tensor = torch.from_numpy(normalized)
-
-    with torch.no_grad():
-        reconstructed = model(tensor)
-        error = torch.mean(
-            (tensor - reconstructed) ** 2,
-            dim=1,
-        ).item()
-
-    anomalous = error > threshold
+    if suspicious_probability >= block_threshold:
+        decision = "BLOCK"
+    elif suspicious_probability >= rate_limit_threshold:
+        decision = "RATE LIMIT"
+    else:
+        decision = "ALLOW"
 
     return {
-        "anomaly_score": round(error, 6),
-        "threshold": round(threshold, 6),
-        "anomalous": anomalous,
-        "decision": "BLOCK" if anomalous else "ALLOW",
-        "model": "autoencoder-v1",
+        "anomaly_score": round(suspicious_probability, 6),
+        "suspicious_probability": round(suspicious_probability, 6),
+        "rate_limit_threshold": rate_limit_threshold,
+        "block_threshold": block_threshold,
+        "anomalous": decision != "ALLOW",
+        "decision": decision,
+        "model": "random-forest-v1",
     }

@@ -2,136 +2,175 @@
 
 ## 1. Project Objective
 
-Build an adaptive API security gateway that uses an AI-based anomaly detection engine to analyse incoming API traffic and influence gateway security decisions.
+Build a demonstrable e-commerce application whose API traffic passes through
+an adaptive security gateway. An AI anomaly-detection service will contribute
+explainable gateway decisions while the e-commerce flow demonstrates realistic
+products, cart, and order traffic.
 
-Expected decisions:
-- ALLOW
-- RATE LIMIT
-- BLOCK
+The final demonstration should include both:
 
-The project uses an e-commerce application to generate realistic API traffic for development, testing and model evaluation.
+1. A working e-commerce flow.
+2. AI-powered gateway security decisions.
 
-## 2. Architecture
+The target policy is:
 
-Client (Angular)
-    |
-    v
-Apache APISIX API Gateway
-    |
-    +----> FastAPI E-commerce Backend
-    |             |
-    |             v
-    |         PostgreSQL
-    |
-    +----> AI Security Engine (FastAPI + PyTorch)
+- `ALLOW`
+- `RATE LIMIT`
+- `BLOCK`
 
-The AI engine is intended to analyse API traffic independently of the e-commerce business logic.
+## 2. Current Repository Status
 
-## 3. Technology Stack
+This section describes the repository as it currently exists. A feature must
+not be marked complete here or elsewhere until it has been tested.
+
+### Frontend
+
+- React/Vite application is under `frontend/`.
+- React Router provides shop, product detail, bag, local authentication, and
+  order history pages.
+- Product browsing, search, categories, authentication, cart changes, checkout,
+  and order history use `/api/*` through APISIX.
+- The complete signup-to-order flow has been verified through the live gateway.
+
+### Backend
+
+- `backend/` is one independently deployable FastAPI codebase with three
+  Compose service roles: `identity-service`, `catalog-service`, and
+  `commerce-service`.
+- All roles use the existing PostgreSQL database; the identity role owns local
+  signup/login JWTs, catalog owns products, and commerce owns user carts and
+  orders.
+- Startup creates compatible tables and adds the user ownership columns needed
+  by existing local data.
+- The complete PostgreSQL-backed signup, product, cart, stock decrement, order,
+  and order-history flow has been verified through APISIX.
+
+### Gateway and Infrastructure
+
+- `compose.yaml` declares etcd, APISIX, PostgreSQL, three FastAPI service roles,
+  and the AI engine.
+- `apisix/config.yaml` configures APISIX to use etcd.
+- `scripts/apply_apisix_routes.py` applies separate identity, catalog, cart,
+  and order routes to the APISIX Admin API and removes the old catch-all route.
+- Each public API route uses the AI pre-function and APISIX `limit-count`
+  (`60` requests per minute per client address). The counter is gateway state,
+  not an AI request-body feature.
+- Vite proxies `/api` requests to the local APISIX gateway during development.
+- The Compose stack is running locally, and the frontend-to-backend path,
+  signup/login, cart, checkout, and order history have been smoke-tested
+  through APISIX.
+
+### AI Security Engine
+
+- `ai-engine/app.py` defines a separate FastAPI scoring service.
+- The service loads a supervised Random Forest classifier and policy
+  thresholds from `classifier_metadata.json`.
+- `/health` reports model readiness and `/score` accepts the eight trained
+  request features.
+- `/score` currently returns `ALLOW`, `RATE LIMIT`, or `BLOCK` using
+  suspicious-probability thresholds of `0.5` and `0.9`.
+- `train_classifier.py` trains the active model from the labeled traffic
+  dataset. A 5-fold benchmark on the current 100-row dataset produced no
+  false positives or false negatives.
+- The earlier autoencoder remains available for comparison, but its
+  95th-percentile reconstruction threshold produced false positives on normal
+  traffic and is not the active model.
+- The AI service now has a CPU-only Docker image and runs in Compose on local
+  port `8001`; `/health` confirms that the model artifacts load.
+- Representative scorer tests produce `ALLOW` for normal traffic, `RATE LIMIT`
+  for burst traffic, and `BLOCK` for unusually large requests.
+- The model and dataset still require broader evaluation; this is not yet a
+  production-ready security policy.
+- APISIX calls the AI scorer during request rewriting and enforces
+  `RATE LIMIT` as HTTP 429 and `BLOCK` as HTTP 403. AI service failures fail
+  closed with HTTP 503 rather than silently allowing traffic.
+
+## 3. Intended Architecture
+
+```text
+React/Vite frontend
+        |
+        v
+Apache APISIX API Gateway <----> etcd
+        |          |          |
+        v          v          v
+ identity     catalog     commerce
+ service      service      service
+        \          |          /
+              PostgreSQL
+                    ^
+                    |
+              AI security engine
+```
+
+APISIX is intended to be the public API entry point. The backend owns
+e-commerce business logic and persistence. The AI engine remains independent
+and evaluates request traffic rather than product, cart, or order rules.
+
+## 4. Technology Stack
 
 | Component | Technology |
 |---|---|
-| Frontend | Angular 13 |
-| Backend | FastAPI |
-| Database | PostgreSQL 17 |
-| API Gateway | Apache APISIX 3.19 |
-| Configuration Store | etcd 3.5 |
-| AI Engine | Python, FastAPI, PyTorch |
-| Containers | Docker Compose |
+| Frontend | React, Vite, React Router |
+| Backend | Python, FastAPI service roles |
+| Database | PostgreSQL |
+| API Gateway | Apache APISIX |
+| Configuration store | etcd |
+| AI engine | Python, FastAPI, PyTorch |
+| Local orchestration | Docker Compose |
+| Deployment target | One AWS EC2 instance in the Mumbai region |
 
-## 4. Local Environment
+## 5. Local Environment
 
 Project root:
-D:\Mayur\coding\adaptive-api-gateway
+`D:\Mayur\coding\adaptive-api-gateway`
 
-Gateway:
-http://localhost:9081
+Configured local endpoints:
 
-APISIX Admin API:
-http://localhost:9180
+- Gateway: `http://localhost:9081`
+- APISIX Admin API: `http://localhost:9180`
+- Internal service container port: `8000` (not published directly)
+- AI engine local port: `8001`
+- Vite development server: typically `http://localhost:5173`
 
-Backend internal port:
-8000
+Local development uses Windows, PowerShell, Docker Desktop, and WSL2. The
+actual ports and service health must be verified when the stack is started.
 
-Frontend development server:
-http://localhost:4200
+## 6. Phased Implementation Plan
 
-Development is performed locally using Windows 11, PowerShell and Docker Desktop with WSL2.
+1. Keep repository documentation and status accurate.
+2. Inspect and stabilize the React/Vite frontend.
+3. Implement the PostgreSQL-backed identity, catalog, and commerce services.
+4. Configure APISIX routes, AI enforcement, and gateway request counting.
+5. Complete and verify the authenticated e-commerce flow.
+7. Containerize and integrate the AI engine.
+8. Add and test `ALLOW`, `RATE LIMIT`, and `BLOCK` policy behavior.
+9. Add focused unit, integration, and end-to-end tests.
+10. Prepare and validate the Docker Compose deployment on AWS EC2.
 
-## 5. Current Implementation Status
+The work should proceed incrementally, with each phase validated before the
+next one is treated as complete. The target is a reliable demonstration
+within November 2026, not an untested claim of production readiness.
 
-### Infrastructure
-- Docker Desktop and Docker Compose working.
-- APISIX and etcd running.
-- PostgreSQL container running and healthy.
-- FastAPI backend running inside Docker.
-- APISIX wildcard route configured to forward requests to the backend.
-- Gateway successfully tested.
+## 7. AWS Deployment Plan
 
-### Backend
-- FastAPI application exists.
-- SQLAlchemy database connection configured.
-- PostgreSQL database configured.
-- Product model and Pydantic schemas created.
-- Database tables currently created using SQLAlchemy create_all().
-- GET /products implemented.
-- GET /products/{product_id} implemented.
+The planned deployment is one EC2 instance in the AWS Mumbai region running
+the application with Docker Compose. Before deployment:
 
-### Frontend
-- Teammate-provided Angular 13 e-commerce frontend extracted into e-commerce-frontend.
-- HttpClientModule added to app.module.ts.
-- CollectionService modified to request GET /products.
-- ProductsComponent modified to load products from the backend.
-- Product card integration is not yet verified.
-- Frontend/backend CORS configuration may still be required.
+- Keep secrets in environment configuration rather than the repository.
+- Restrict security-group access to required ports.
+- Validate the Compose stack and health checks locally.
+- Verify APISIX routing, PostgreSQL persistence, and AI service readiness.
+- Document operational logs, restart behavior, and backup considerations.
 
-### AI Engine
-- Separate FastAPI AI service and PyTorch autoencoder prototype exist.
-- Earlier synthetic-data experiments showed false positives on some normal requests.
-- Model feature selection, dataset quality, threshold calibration and evaluation need further work.
-- Do not assume the current model is production-ready.
+The AWS deployment is planned work and must not be described as complete until
+it has been executed and tested.
 
-## 6. Important Development Decisions
-
-- Keep the e-commerce backend as a modular FastAPI application initially.
-- Use PostgreSQL for persistent application data.
-- Use APISIX as the entry point for frontend API requests.
-- Keep Angular development outside Docker initially.
-- Run Angular locally using Node.js and npm.
-- Containerize the frontend later for deployment.
-- Prioritize realistic API traffic generation before finalizing AI model features.
-
-## 7. Frontend Dependency Warning
-
-The Angular project uses Angular 13.
-
-Installation required:
-npm install --legacy-peer-deps
-
-Reason:
-angular-responsive-carousel@2.1.2 declares a peer dependency on Angular 11.
-
-Installation reported 127 vulnerabilities, including 9 critical.
-
-Do not blindly execute npm audit fix --force.
-Review and update dependencies carefully before deployment.
-
-## 8. Immediate Next Steps
-
-1. Inspect the current Angular modifications.
-2. Verify CollectionService and ProductsComponent.
-3. Integrate the product card component with the backend Product schema.
-4. Start the Angular development server.
-5. Test product retrieval through APISIX.
-6. Resolve CORS issues if encountered.
-7. Implement product creation and seed initial product data.
-8. Continue with authentication, cart and order functionality.
-
-## 9. Working Conventions
+## 8. Working Conventions
 
 - Make small, testable changes.
 - Preserve existing code and user modifications.
-- Update this document as implementation progresses.
-- Record important architecture decisions.
-- Explain technical decisions concisely.
-- Never mark a feature as complete without testing it.
+- Prefer readable, maintainable implementations.
+- Reuse existing helpers and patterns before adding dependencies.
+- Update this document when architecture or implementation status changes.
+- Never mark a feature complete without evidence from the relevant tests.

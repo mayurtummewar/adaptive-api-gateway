@@ -1,0 +1,18 @@
+{
+  "model": "random-forest-v1",
+  "features": [
+    "path_length",
+    "query_length",
+    "query_param_count",
+    "header_count",
+    "user_agent_length",
+    "request_body_bytes",
+    "interarrival_ms",
+    "requests_last_10s"
+  ],
+  "training_samples": 100,
+  "normal_samples": 80,
+  "suspicious_samples": 20,
+  "rate_limit_threshold": 0.5,
+  "block_threshold": 0.9
+}

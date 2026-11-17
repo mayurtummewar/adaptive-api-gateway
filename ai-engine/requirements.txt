@@ -3,6 +3,8 @@ numpy
 pandas
 scikit-learn
 joblib
-torch
+# The scorer runs on CPU in the local and EC2 Compose deployments.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu
 fastapi
 uvicorn[standard]

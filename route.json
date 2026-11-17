@@ -1,9 +1,22 @@
-{
-    "uri":  "/hello",
-    "upstream":  {
-                     "nodes":  {
-                                   "backend:8000":  1
-                               },
-                     "type":  "roundrobin"
-                 }
-}
+[
+  {
+    "id": "identity-service",
+    "uri": "/api/auth/*",
+    "upstream": "identity-service"
+  },
+  {
+    "id": "catalog-service",
+    "uri": "/api/products*",
+    "upstream": "catalog-service"
+  },
+  {
+    "id": "commerce-cart-service",
+    "uri": "/api/cart*",
+    "upstream": "commerce-service"
+  },
+  {
+    "id": "commerce-orders-service",
+    "uri": "/api/orders*",
+    "upstream": "commerce-service"
+  }
+]

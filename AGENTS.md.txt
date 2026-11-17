@@ -1,41 +1,119 @@
 # Development Instructions
 
 ## Project Overview
-This repository contains my final-year Computer Engineering project: **AI-Powered API Security Gateway for E-commerce Applications**.
 
-The main research focus is the AI-based API traffic anomaly detection and adaptive security decisions, not simply building an e-commerce website.
+This repository contains the final-year Computer Engineering project
+**AI-Powered API Security Gateway for E-commerce Applications**.
+
+The primary research focus is an AI-based API traffic anomaly detector that
+helps APISIX make adaptive security decisions. The e-commerce application
+provides realistic traffic for development, testing, and model evaluation.
+
+## Current Architecture
+
+- **Frontend:** React with Vite under `frontend/`
+- **Backend:** Python/FastAPI service roles under `backend/`, deployed as
+  identity, catalog, and commerce containers
+- **Database:** PostgreSQL
+- **API gateway:** Apache APISIX with etcd
+- **AI security engine:** Python/FastAPI with a PyTorch autoencoder under
+  `ai-engine/`
+- **Local orchestration:** Docker Compose
+
+The frontend provides product browsing, search, local signup/login, a
+user-owned bag, checkout, and order history. The service roles share the
+existing PostgreSQL database through SQLAlchemy. APISIX routes each domain to
+its own service and the Vite development proxy points only at the gateway.
 
 ## Development Rules
 
 1. Inspect existing code before modifying it.
-2. Never overwrite working implementations without understanding their purpose.
-3. Make incremental changes. Complete one logical task and test it before proceeding.
-4. Explain important technical decisions briefly, including why a particular approach is chosen.
-5. Keep explanations concise and beginner-friendly.
-6. Do not introduce unnecessary dependencies, frameworks, or architectural complexity.
-7. Do not invent completed features or claim something works without testing it.
-8. Ask before making major architectural changes or deleting existing code.
-9. Keep project documentation updated when architecture or implementation changes.
-10. Prefer readable, maintainable code over unnecessarily clever implementations.
+2. Make small, testable changes and preserve existing user work.
+3. Do not claim a feature is complete without testing it.
+4. Reuse existing patterns and avoid unnecessary dependencies or architecture.
+5. Ask before making major architectural changes or deleting existing code.
+6. Keep documentation aligned with the actual implementation status.
+7. Explain important technical decisions briefly and clearly.
+8. Surface errors explicitly; do not hide failures behind silent fallbacks.
 
-## Architecture Guidelines
+## Target Request Flow
 
-- APISIX acts as the API gateway.
-- The backend and AI engine should remain independent services.
-- The AI engine should evaluate API traffic and contribute to security decisions.
-- The e-commerce backend is primarily a realistic source of API traffic.
-- Avoid coupling the AI engine directly to e-commerce business logic.
-- Keep security decisions explainable and observable.
+The intended flow is:
 
-## Technology Stack
+```text
+React/Vite frontend
+        |
+        v
+Apache APISIX gateway
+   |          |          |
+   v          v          v
+Identity   Catalog    Commerce
+   \          |          /
+          PostgreSQL
+                ^
+                |
+         AI security engine
+```
 
-- Frontend: Angular / TypeScript
-- Backend: Python / FastAPI
-- Database: PostgreSQL
-- API Gateway: Apache APISIX
-- Configuration Store: etcd
-- AI/ML: Python / PyTorch
-- Development Environment: Windows 11, PowerShell, Docker Desktop, WSL2
+APISIX should remain the public API entry point. The backend and AI engine
+should remain independent services. The AI engine must not contain e-commerce
+business logic; it should evaluate request features and return explainable
+security information.
+
+## Security Policy
+
+The eventual gateway policy must support:
+
+- `ALLOW` for acceptable traffic
+- `RATE LIMIT` for suspicious or high-frequency traffic that should be slowed
+- `BLOCK` for traffic that exceeds the blocking policy
+
+The AI service now uses a supervised Random Forest trained from the labeled
+traffic dataset. It returns `ALLOW` below probability `0.5`, `RATE LIMIT`
+from `0.5` through below `0.9`, and `BLOCK` at `0.9` or above. The previous
+autoencoder remains in the artifacts and evaluation scripts for comparison,
+but is not the active scorer because it produced false positives on normal
+traffic.
+
+The AI engine is containerized in Compose and exposes its local health/score
+service on `http://localhost:8001`. APISIX calls the AI service during request
+rewriting and enforces `RATE LIMIT` as HTTP 429 and `BLOCK` as HTTP 403. The
+classifier must be validated on broader traffic before being treated as
+production-ready. APISIX also applies a real `limit-count` policy of 60
+requests per minute per client address; this gateway counter is independent
+from the AI feature payload.
+
+## Implementation Order
+
+Work through these phases in small, tested increments:
+
+1. Keep the documentation and repository status accurate.
+2. Inspect and stabilize the React/Vite frontend.
+3. Implement the FastAPI backend with PostgreSQL.
+4. Add product schemas, seed data, and product endpoints.
+5. Connect the frontend to the backend through APISIX.
+6. Add cart and order endpoints and complete the e-commerce flow.
+7. Containerize and integrate the AI engine.
+8. Implement and test the `ALLOW`/`RATE LIMIT`/`BLOCK` policy.
+9. Add focused tests and local end-to-end validation.
+10. Prepare the Docker Compose deployment for AWS.
+
+The current local scope is products, cart, orders, and local email/password
+authentication. Third-party identity providers and payment providers are
+intentionally out of scope.
+
+## Local Development
+
+Development is performed on Windows with PowerShell, Docker Desktop, and
+WSL2. The configured local gateway and APISIX Admin API ports are:
+
+- Gateway: `http://localhost:9081`
+- APISIX Admin API: `http://localhost:9180`
+- Internal service container port: `8000` (not published directly)
+
+Run the React/Vite development server from `frontend/`. Run the backend from
+`backend/` with `DATABASE_URL` configured. Do not assume the frontend is
+connected to the gateway until that path has been tested.
 
 ## Security and Configuration
 
@@ -43,14 +121,17 @@ The main research focus is the AI-based API traffic anomaly detection and adapti
 - Use environment variables for sensitive configuration.
 - Do not expose development services publicly.
 - Do not disable security checks merely to make tests pass.
-- Investigate dependency vulnerabilities before deployment.
+- Review dependency vulnerabilities before deployment.
 
-## Testing
+## Validation
 
-- Test every meaningful change.
+For every meaningful change:
+
+- Run the smallest relevant lint, build, or test command.
 - Verify API responses and status codes.
-- Check container logs when debugging Docker services.
-- Do not assume that a successful build means the feature works.
+- Check container logs when debugging Compose services.
+- Test the actual request path through APISIX where applicable.
+- Do not treat a successful build as proof that runtime behavior works.
 
 ## Git
 
